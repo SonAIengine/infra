@@ -1,0 +1,43 @@
+# ArgoCD Helm values override for K3s single-node setup
+# Install: helm install argocd argo/argo-cd -n argocd --create-namespace -f install.yaml
+server:
+  replicas: 1
+  service:
+    type: ClusterIP
+  ingress:
+    enabled: true
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      traefik.ingress.kubernetes.io/router.middlewares: argocd-redirect-https@kubernetescrd
+    hosts:
+      - argocd.infoedu.co.kr
+    tls:
+      - secretName: argocd-tls
+        hosts:
+          - argocd.infoedu.co.kr
+  extraArgs:
+    - --insecure  # TLS terminated at Traefik
+
+controller:
+  replicas: 1
+
+repoServer:
+  replicas: 1
+
+redis:
+  enabled: true
+
+dex:
+  enabled: false
+
+notifications:
+  enabled: false
+
+configs:
+  params:
+    server.insecure: true
+  repositories:
+    infra-repo:
+      url: https://github.com/sonbs21/infra.git
+      name: infra
+      type: git

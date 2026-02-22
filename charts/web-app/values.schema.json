@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "namespace": {
+      "type": "string",
+      "description": "Target Kubernetes namespace"
+    },
+    "server": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "name": { "type": "string", "minLength": 1 },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": { "type": "string" },
+            "tag": { "type": "string" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          },
+          "required": ["repository", "tag"]
+        },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "env": { "type": "array" },
+        "envFrom": { "type": "array" },
+        "resources": { "type": "object" }
+      }
+    },
+    "client": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "name": { "type": "string", "minLength": 1 },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": { "type": "string" },
+            "tag": { "type": "string" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          },
+          "required": ["repository", "tag"]
+        },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      }
+    },
+    "databases": {
+      "type": "object",
+      "properties": {
+        "postgresql": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "storage": { "type": "string", "pattern": "^[0-9]+[KMGT]i$" },
+            "storageClass": { "type": "string" }
+          }
+        },
+        "mongodb": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "storage": { "type": "string", "pattern": "^[0-9]+[KMGT]i$" },
+            "storageClass": { "type": "string" }
+          }
+        },
+        "redis": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "storage": { "type": "string", "pattern": "^[0-9]+[KMGT]i$" },
+            "storageClass": { "type": "string" }
+          }
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "host": { "type": "string", "minLength": 1 },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": { "type": "string" },
+                    "pathType": { "type": "string", "enum": ["Prefix", "Exact", "ImplementationSpecific"] },
+                    "component": { "type": "string", "enum": ["server", "client"] }
+                  },
+                  "required": ["path", "component"]
+                },
+                "minItems": 1
+              }
+            },
+            "required": ["host", "paths"]
+          }
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "volumes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "size": { "type": "string", "pattern": "^[0-9]+[KMGT]i$" },
+              "storageClass": { "type": "string" },
+              "accessMode": { "type": "string" }
+            },
+            "required": ["name", "size"]
+          }
+        }
+      }
+    }
+  }
+}

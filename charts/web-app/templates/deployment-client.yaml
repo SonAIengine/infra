@@ -1,0 +1,75 @@
+{{- if .Values.client.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.client.name }}
+  namespace: {{ include "web-app.namespace" . }}
+  labels:
+    {{- include "web-app.client.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.client.replicas }}
+  selector:
+    matchLabels:
+      {{- include "web-app.client.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "web-app.client.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ .Values.client.name }}
+          image: {{ .Values.client.image.repository }}:{{ .Values.client.image.tag }}
+          imagePullPolicy: {{ .Values.client.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.client.port }}
+          {{- with .Values.client.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.client.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.client.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.client.healthCheck.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.client.healthCheck.path }}
+              port: {{ .Values.client.port }}
+            initialDelaySeconds: {{ .Values.client.healthCheck.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.client.healthCheck.readiness.periodSeconds }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.client.healthCheck.path }}
+              port: {{ .Values.client.port }}
+            initialDelaySeconds: {{ .Values.client.healthCheck.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.client.healthCheck.liveness.periodSeconds }}
+          {{- end }}
+          {{- if or .Values.client.configMap.enabled .Values.client.volumeMounts }}
+          volumeMounts:
+            {{- if .Values.client.configMap.enabled }}
+            - name: {{ .Values.client.configMap.name }}
+              mountPath: {{ .Values.client.configMap.mountPath }}
+              {{- if .Values.client.configMap.subPath }}
+              subPath: {{ .Values.client.configMap.subPath }}
+              {{- end }}
+            {{- end }}
+            {{- with .Values.client.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+      {{- if or .Values.client.configMap.enabled .Values.client.volumes }}
+      volumes:
+        {{- if .Values.client.configMap.enabled }}
+        - name: {{ .Values.client.configMap.name }}
+          configMap:
+            name: {{ .Values.client.configMap.name }}
+        {{- end }}
+        {{- with .Values.client.volumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+{{- end }}

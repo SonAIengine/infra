@@ -1,0 +1,126 @@
+# Reusable workflow: Build Docker images, import to K3s, update image tags
+# Called from application repos via workflow_call
+name: Build & Deploy
+
+on:
+  workflow_call:
+    inputs:
+      app-name:
+        description: "Application name (matches apps/<name> directory)"
+        required: true
+        type: string
+      namespace:
+        description: "Kubernetes namespace"
+        required: true
+        type: string
+      components:
+        description: 'JSON array of components: [{"name":"server","dockerfile":"./Dockerfile","context":"."}]'
+        required: true
+        type: string
+      infra-repo:
+        description: "Infra repository (owner/repo)"
+        required: false
+        type: string
+        default: "sonbs21/infra"
+    secrets:
+      GH_PAT:
+        description: "GitHub PAT for updating infra repo"
+        required: true
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout app repo
+        uses: actions/checkout@v4
+
+      - name: Set short SHA
+        run: echo "SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_ENV
+
+      - name: Build and import images
+        run: |
+          COMPONENTS='${{ inputs.components }}'
+          echo "$COMPONENTS" | jq -c '.[]' | while read -r component; do
+            NAME=$(echo "$component" | jq -r '.name')
+            DOCKERFILE=$(echo "$component" | jq -r '.dockerfile')
+            CONTEXT=$(echo "$component" | jq -r '.context')
+            IMAGE="${{ inputs.app-name }}-${NAME}"
+
+            echo "==> Building ${IMAGE}:${{ env.SHORT_SHA }}"
+            docker build \
+              -t "${IMAGE}:${{ env.SHORT_SHA }}" \
+              -t "${IMAGE}:latest" \
+              -f "${DOCKERFILE}" \
+              "${CONTEXT}"
+
+            echo "==> Importing ${IMAGE} to K3s"
+            docker save "${IMAGE}:${{ env.SHORT_SHA }}" | sudo k3s ctr images import -
+          done
+
+      - name: Update image tags in infra repo
+        run: |
+          # Clone infra repo
+          git clone "https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ inputs.infra-repo }}.git" /tmp/infra-update
+          cd /tmp/infra-update
+
+          VALUES_FILE="apps/${{ inputs.app-name }}/values.yaml"
+
+          if [ ! -f "$VALUES_FILE" ]; then
+            echo "ERROR: ${VALUES_FILE} not found"
+            exit 1
+          fi
+
+          # Update image tags for each component
+          COMPONENTS='${{ inputs.components }}'
+          echo "$COMPONENTS" | jq -c '.[]' | while read -r component; do
+            NAME=$(echo "$component" | jq -r '.name')
+            IMAGE="${{ inputs.app-name }}-${NAME}"
+
+            # Update tag: latest -> SHORT_SHA using sed
+            sed -i "s|repository: docker.io/library/${IMAGE}|repository: docker.io/library/${IMAGE}|" "$VALUES_FILE"
+            # Find the tag line after the matching repository and update it
+            sed -i "/repository: docker.io\/library\/${IMAGE}/{n;s/tag: .*/tag: \"${{ env.SHORT_SHA }}\"/}" "$VALUES_FILE"
+          done
+
+          # Commit and push
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "$VALUES_FILE"
+          git diff --cached --quiet || {
+            git commit -m "deploy(${{ inputs.app-name }}): update image tags to ${{ env.SHORT_SHA }}"
+            git push
+          }
+
+          # Cleanup
+          rm -rf /tmp/infra-update
+
+      - name: Deploy to K3s (immediate)
+        env:
+          KUBECONFIG: /home/son/.kube/config
+        run: |
+          COMPONENTS='${{ inputs.components }}'
+          echo "$COMPONENTS" | jq -c '.[]' | while read -r component; do
+            NAME=$(echo "$component" | jq -r '.name')
+            DEPLOY_NAME=$(echo "$component" | jq -r '.deploymentName // .name')
+            IMAGE="${{ inputs.app-name }}-${NAME}"
+
+            echo "==> Updating deployment/${DEPLOY_NAME} in ${{ inputs.namespace }}"
+            kubectl set image "deployment/${DEPLOY_NAME}" \
+              "${DEPLOY_NAME}=docker.io/library/${IMAGE}:${{ env.SHORT_SHA }}" \
+              -n "${{ inputs.namespace }}"
+
+            kubectl rollout status "deployment/${DEPLOY_NAME}" \
+              -n "${{ inputs.namespace }}" \
+              --timeout=180s
+          done
+
+      - name: Verify deployment
+        env:
+          KUBECONFIG: /home/son/.kube/config
+        run: |
+          echo "==> Pods in ${{ inputs.namespace }}"
+          kubectl get pods -n "${{ inputs.namespace }}"
+
+      - name: Cleanup old Docker images
+        if: always()
+        run: docker image prune -af --filter "until=24h" || true

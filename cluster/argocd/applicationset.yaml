@@ -1,0 +1,41 @@
+# ApplicationSet: auto-discover apps in apps/ directory
+# Each subdirectory with a values.yaml becomes an ArgoCD Application
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: web-apps
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/sonbs21/infra.git
+        revision: HEAD
+        directories:
+          - path: apps/*
+          - path: apps/_template
+            exclude: true
+  template:
+    metadata:
+      name: "{{ .path.basename }}"
+      namespace: argocd
+    spec:
+      project: web-apps
+      source:
+        repoURL: https://github.com/sonbs21/infra.git
+        targetRevision: HEAD
+        path: charts/web-app
+        helm:
+          valueFiles:
+            - "../../apps/{{ .path.basename }}/values.yaml"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{ .path.basename }}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ApplyOutOfSyncOnly=true

@@ -1,0 +1,103 @@
+{{- if .Values.databases.mongodb.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongodb-data
+  namespace: {{ include "web-app.namespace" . }}
+  labels:
+    {{- include "web-app.labels" . | nindent 4 }}
+    app: mongodb
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.databases.mongodb.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.databases.mongodb.storage }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb
+  namespace: {{ include "web-app.namespace" . }}
+  labels:
+    {{- include "web-app.labels" . | nindent 4 }}
+    app: mongodb
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+        - name: mongodb
+          image: {{ .Values.databases.mongodb.image }}
+          ports:
+            - containerPort: {{ .Values.databases.mongodb.port }}
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.databases.mongodb.secretName }}
+                  key: {{ .Values.databases.mongodb.secretKeys.rootUser }}
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.databases.mongodb.secretName }}
+                  key: {{ .Values.databases.mongodb.secretKeys.rootPassword }}
+            {{- if .Values.databases.mongodb.initDatabase }}
+            - name: MONGO_INITDB_DATABASE
+              value: {{ .Values.databases.mongodb.initDatabase | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: mongodb-storage
+              mountPath: /data/db
+          {{- with .Values.databases.mongodb.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          readinessProbe:
+            exec:
+              command:
+                - mongosh
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: {{ .Values.databases.mongodb.healthCheck.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.databases.mongodb.healthCheck.readiness.periodSeconds }}
+          livenessProbe:
+            exec:
+              command:
+                - mongosh
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: {{ .Values.databases.mongodb.healthCheck.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.databases.mongodb.healthCheck.liveness.periodSeconds }}
+      volumes:
+        - name: mongodb-storage
+          persistentVolumeClaim:
+            claimName: mongodb-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: {{ include "web-app.namespace" . }}
+  labels:
+    {{- include "web-app.labels" . | nindent 4 }}
+    app: mongodb
+spec:
+  type: ClusterIP
+  selector:
+    app: mongodb
+  ports:
+    - port: {{ .Values.databases.mongodb.port }}
+      targetPort: {{ .Values.databases.mongodb.port }}
+      protocol: TCP
+{{- end }}

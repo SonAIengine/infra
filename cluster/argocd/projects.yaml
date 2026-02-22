@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: web-apps
+  namespace: argocd
+spec:
+  description: Web application deployments managed by Helm
+  sourceRepos:
+    - https://github.com/sonbs21/infra.git
+  destinations:
+    - namespace: "*"
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: "*"
+    - group: apps
+      kind: Deployment
+    - group: networking.k8s.io
+      kind: Ingress
+    - group: traefik.io
+      kind: Middleware
+    - group: cert-manager.io
+      kind: "*"

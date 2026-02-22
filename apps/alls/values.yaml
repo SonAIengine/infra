@@ -1,0 +1,164 @@
+namespace: alls
+
+# =============================================================================
+# Server (Node.js/Express backend)
+# =============================================================================
+server:
+  enabled: true
+  name: alls-server
+  image:
+    repository: docker.io/library/alls-server
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 5001
+  env:
+    - name: NODE_ENV
+      value: "production"
+    - name: PORT
+      value: "5001"
+    - name: MONGODB_URI
+      valueFrom:
+        secretKeyRef:
+          name: alls-app-secret
+          key: MONGODB_URI
+    - name: JWT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: alls-app-secret
+          key: JWT_SECRET
+    - name: JWT_EXPIRE
+      value: "7d"
+    - name: ALLOWED_ORIGINS
+      value: "https://alls-kr.shop"
+    - name: FRONTEND_URL
+      value: "https://alls-kr.shop"
+  healthCheck:
+    enabled: true
+    path: /api/health
+    readiness:
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    liveness:
+      initialDelaySeconds: 30
+      periodSeconds: 30
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+  volumeMounts:
+    - name: uploads-storage
+      mountPath: /app/uploads
+  volumes:
+    - name: uploads-storage
+      persistentVolumeClaim:
+        claimName: uploads-data
+
+# =============================================================================
+# Client (Next.js SSR)
+# =============================================================================
+client:
+  enabled: true
+  name: alls-client
+  image:
+    repository: docker.io/library/alls-client
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 1
+  port: 3051
+  env:
+    - name: PORT
+      value: "3051"
+    - name: HOSTNAME
+      value: "0.0.0.0"
+    - name: SERVER_API_URL
+      value: "http://alls-server:5001"
+  healthCheck:
+    enabled: true
+    path: /
+    readiness:
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    liveness:
+      initialDelaySeconds: 20
+      periodSeconds: 30
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+    limits:
+      cpu: "2"
+      memory: "1Gi"
+  configMap:
+    enabled: false
+
+# =============================================================================
+# Databases
+# =============================================================================
+databases:
+  mongodb:
+    enabled: true
+    image: mongo:7
+    port: 27017
+    storage: 20Gi
+    storageClass: local-path
+    secretName: alls-db-secret
+    secretKeys:
+      rootUser: MONGO_ROOT_USER
+      rootPassword: MONGO_ROOT_PASSWORD
+    initDatabase: sticker-mall
+    healthCheck:
+      readiness:
+        initialDelaySeconds: 10
+        periodSeconds: 10
+      liveness:
+        initialDelaySeconds: 30
+        periodSeconds: 30
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "512Mi"
+      limits:
+        cpu: "2"
+        memory: "2Gi"
+
+# =============================================================================
+# Ingress
+# =============================================================================
+ingress:
+  enabled: true
+  middleware:
+    redirectHttps: true
+  tls:
+    enabled: true
+    secretName: alls-tls
+    certManager: true
+    issuer: letsencrypt-prod
+  rules:
+    - host: alls-kr.shop
+      paths:
+        - path: /socket.io
+          pathType: Prefix
+          component: server
+        - path: /api
+          pathType: Prefix
+          component: server
+        - path: /uploads
+          pathType: Prefix
+          component: server
+        - path: /
+          pathType: Prefix
+          component: client
+
+# =============================================================================
+# Persistence (uploads volume for server)
+# =============================================================================
+persistence:
+  volumes:
+    - name: uploads-data
+      size: 10Gi
+      storageClass: local-path
+      accessMode: ReadWriteOnce

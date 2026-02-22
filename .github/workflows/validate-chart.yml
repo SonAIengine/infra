@@ -1,0 +1,64 @@
+# CI: validate Helm chart on every push/PR
+name: Validate Chart
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "charts/**"
+      - "apps/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "charts/**"
+      - "apps/**"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Helm lint (default values)
+        run: helm lint charts/web-app
+
+      - name: Helm lint (dongtan)
+        run: helm lint charts/web-app -f apps/dongtan/values.yaml
+
+      - name: Helm lint (alls)
+        run: helm lint charts/web-app -f apps/alls/values.yaml
+
+  template:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [dongtan, alls]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Helm template (${{ matrix.app }})
+        run: |
+          helm template ${{ matrix.app }} charts/web-app \
+            -f apps/${{ matrix.app }}/values.yaml \
+            --output-dir /tmp/rendered/${{ matrix.app }}
+
+      - name: Show rendered manifests
+        run: |
+          echo "==> Rendered manifests for ${{ matrix.app }}:"
+          find /tmp/rendered/${{ matrix.app }} -name '*.yaml' | sort | while read f; do
+            echo "--- $f ---"
+            cat "$f"
+            echo
+          done
+
+      - name: Upload rendered manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifests-${{ matrix.app }}
+          path: /tmp/rendered/${{ matrix.app }}

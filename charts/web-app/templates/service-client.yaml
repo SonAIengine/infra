@@ -1,0 +1,17 @@
+{{- if .Values.client.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.client.name }}
+  namespace: {{ include "web-app.namespace" . }}
+  labels:
+    {{- include "web-app.client.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "web-app.client.selectorLabels" . | nindent 4 }}
+  ports:
+    - port: {{ .Values.client.port }}
+      targetPort: {{ .Values.client.port }}
+      protocol: TCP
+{{- end }}

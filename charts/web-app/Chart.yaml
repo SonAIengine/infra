@@ -1,0 +1,15 @@
+apiVersion: v2
+name: web-app
+description: Universal Helm chart for web applications with server, client, and database components
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - web
+  - fullstack
+  - nodejs
+  - react
+  - nextjs
+maintainers:
+  - name: son
+    email: sonbs99@gmail.com

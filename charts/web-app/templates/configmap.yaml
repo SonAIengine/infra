@@ -1,0 +1,28 @@
+{{- if .Values.client.configMap.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.client.configMap.name }}
+  namespace: {{ include "web-app.namespace" . }}
+  labels:
+    {{- include "web-app.labels" . | nindent 4 }}
+data:
+  {{- range $key, $value := .Values.client.configMap.data }}
+  {{ $key }}: |
+    {{- $value | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- range .Values.configMaps }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .name }}
+  namespace: {{ include "web-app.namespace" $ }}
+  labels:
+    {{- include "web-app.labels" $ | nindent 4 }}
+data:
+  {{- range $key, $value := .data }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+{{- end }}

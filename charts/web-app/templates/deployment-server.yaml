@@ -1,0 +1,59 @@
+{{- if .Values.server.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.server.name }}
+  namespace: {{ include "web-app.namespace" . }}
+  labels:
+    {{- include "web-app.server.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.server.replicas }}
+  selector:
+    matchLabels:
+      {{- include "web-app.server.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "web-app.server.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ .Values.server.name }}
+          image: {{ .Values.server.image.repository }}:{{ .Values.server.image.tag }}
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.server.port }}
+          {{- with .Values.server.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.server.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.server.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.server.healthCheck.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.server.healthCheck.path }}
+              port: {{ .Values.server.port }}
+            initialDelaySeconds: {{ .Values.server.healthCheck.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.server.healthCheck.readiness.periodSeconds }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.server.healthCheck.path }}
+              port: {{ .Values.server.port }}
+            initialDelaySeconds: {{ .Values.server.healthCheck.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.server.healthCheck.liveness.periodSeconds }}
+          {{- end }}
+          {{- with .Values.server.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.server.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

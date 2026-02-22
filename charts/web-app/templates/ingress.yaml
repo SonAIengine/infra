@@ -1,0 +1,43 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "web-app.fullname" . }}-ingress
+  namespace: {{ include "web-app.namespace" . }}
+  labels:
+    {{- include "web-app.labels" . | nindent 4 }}
+  annotations:
+    {{- if .Values.ingress.tls.certManager }}
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.tls.issuer }}
+    {{- end }}
+    {{- if .Values.ingress.middleware.redirectHttps }}
+    traefik.ingress.kubernetes.io/router.middlewares: {{ include "web-app.namespace" . }}-redirect-https@kubernetescrd
+    {{- end }}
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    {{- range .Values.ingress.rules }}
+    - hosts:
+        - {{ .host }}
+      secretName: {{ $.Values.ingress.tls.secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.rules }}
+    - host: {{ .host }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType | default "Prefix" }}
+            backend:
+              service:
+                name: {{ include "web-app.serviceName" (dict "component" .component "Values" $.Values) }}
+                port:
+                  number: {{ include "web-app.servicePort" (dict "component" .component "Values" $.Values) | int }}
+          {{- end }}
+    {{- end }}
+{{- end }}

@@ -1,0 +1,98 @@
+{{- if .Values.databases.redis.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-data
+  namespace: {{ include "web-app.namespace" . }}
+  labels:
+    {{- include "web-app.labels" . | nindent 4 }}
+    app: redis
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.databases.redis.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.databases.redis.storage }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: {{ include "web-app.namespace" . }}
+  labels:
+    {{- include "web-app.labels" . | nindent 4 }}
+    app: redis
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: {{ .Values.databases.redis.image }}
+          command:
+            - redis-server
+            - --requirepass
+            - $(REDIS_PASSWORD)
+          ports:
+            - containerPort: {{ .Values.databases.redis.port }}
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.databases.redis.secretName }}
+                  key: {{ .Values.databases.redis.secretKeys.password }}
+          volumeMounts:
+            - name: redis-storage
+              mountPath: /data
+          {{- with .Values.databases.redis.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - redis-cli -a $REDIS_PASSWORD ping
+            initialDelaySeconds: {{ .Values.databases.redis.healthCheck.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.databases.redis.healthCheck.readiness.periodSeconds }}
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - redis-cli -a $REDIS_PASSWORD ping
+            initialDelaySeconds: {{ .Values.databases.redis.healthCheck.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.databases.redis.healthCheck.liveness.periodSeconds }}
+      volumes:
+        - name: redis-storage
+          persistentVolumeClaim:
+            claimName: redis-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: {{ include "web-app.namespace" . }}
+  labels:
+    {{- include "web-app.labels" . | nindent 4 }}
+    app: redis
+spec:
+  type: ClusterIP
+  selector:
+    app: redis
+  ports:
+    - port: {{ .Values.databases.redis.port }}
+      targetPort: {{ .Values.databases.redis.port }}
+      protocol: TCP
+{{- end }}
