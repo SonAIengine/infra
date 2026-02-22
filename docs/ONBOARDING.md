@@ -77,7 +77,7 @@ on:
 
 jobs:
   deploy:
-    uses: sonbs21/infra/.github/workflows/build-and-push.yml@main
+    uses: SonAIengine/infra/.github/workflows/build-and-push.yml@main
     with:
       app-name: my-app
       namespace: my-app

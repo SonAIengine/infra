@@ -38,6 +38,6 @@ configs:
     server.insecure: true
   repositories:
     infra-repo:
-      url: https://github.com/sonbs21/infra.git
+      url: https://github.com/SonAIengine/infra.git
       name: infra
       type: git
