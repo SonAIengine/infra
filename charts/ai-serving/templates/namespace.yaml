@@ -1,0 +1,6 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "ai-serving.namespace" . }}
+  labels:
+    {{- include "ai-serving.labels" . | nindent 4 }}

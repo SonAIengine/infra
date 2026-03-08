@@ -1,0 +1,37 @@
+# Qwen2.5-7B-Instruct AWQ — RTX 3080 10GB 최적화 설정
+namespace: qwen-7b
+
+model:
+  name: Qwen/Qwen2.5-7B-Instruct-AWQ
+  engine: vllm
+  quantization: awq
+  maxModelLen: 4096
+  servedModelName: qwen-7b
+
+gpu:
+  enabled: true
+  count: 1
+  memoryUtilization: 0.85          # 10GB VRAM — 보수적 설정
+  enforceEager: true               # CUDA graph 메모리 오버헤드 제거
+
+serving:
+  port: 8000
+  replicas: 1
+  maxConcurrency: 16               # 10GB VRAM에 맞게 제한
+
+resources:
+  requests:
+    cpu: "4"
+    memory: "16Gi"
+  limits:
+    cpu: "8"
+    memory: "24Gi"
+
+modelStorage:
+  enabled: true
+  size: 30Gi                       # 7B AWQ 모델 ~4GB + 여유
+  storageClass: local-path
+
+huggingface:
+  tokenSecret:
+    name: ""                       # Qwen은 gated 아님 — 토큰 불필요

@@ -1,0 +1,95 @@
+# ai-serving Helm chart 기본값
+# 프로젝트별 values는 apps/<name>/values.yaml에서 오버라이드
+
+namespace: ""
+
+# ── 모델 설정 ──────────────────────────────────────────
+model:
+  name: ""                          # HuggingFace 모델 ID (필수)
+  engine: vllm                      # 추론 엔진: vllm
+  quantization: ""                  # awq | gptq | fp8 | "" (none)
+  maxModelLen: 4096                 # 최대 컨텍스트 길이
+  servedModelName: ""               # 외부 노출 모델명 (빈값이면 model.name 사용)
+  trustRemoteCode: false            # HuggingFace 리모트 코드 허용
+  extraArgs: []                     # 추가 vLLM CLI 인자
+
+# ── 이미지 설정 ──────────────────────────────────────────
+image:
+  repository: vllm/vllm-openai
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# ── GPU 설정 ──────────────────────────────────────────
+gpu:
+  enabled: true
+  count: 1                          # nvidia.com/gpu 요청 수
+  memoryUtilization: 0.90           # vLLM GPU 메모리 사용률 (0.0~1.0)
+  enforceEager: true                # CUDA graph 비활성화 (VRAM 절약)
+  runtimeClassName: nvidia          # K8s GPU runtime class
+
+# ── 서빙 설정 ──────────────────────────────────────────
+serving:
+  port: 8000
+  replicas: 1
+  maxConcurrency: 32                # --max-num-seqs
+
+# ── 리소스 설정 ──────────────────────────────────────────
+resources:
+  requests:
+    cpu: "4"
+    memory: "16Gi"
+  limits:
+    cpu: "8"
+    memory: "32Gi"
+
+# ── Health Check ──────────────────────────────────────────
+healthCheck:
+  startupProbe:
+    path: /health
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    failureThreshold: 60            # 모델 로딩 대기: 최대 10분
+  livenessProbe:
+    path: /health
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    failureThreshold: 3
+  readinessProbe:
+    path: /health
+    initialDelaySeconds: 15
+    periodSeconds: 5
+    failureThreshold: 3
+
+# ── 모델 캐시 스토리지 ──────────────────────────────────
+modelStorage:
+  enabled: true
+  size: 50Gi
+  storageClass: local-path
+  mountPath: /models
+
+# ── Shared Memory ──────────────────────────────────────────
+shmSize: 2Gi                        # /dev/shm (NCCL 통신용)
+
+# ── HuggingFace 인증 ──────────────────────────────────────
+huggingface:
+  # Secret으로 관리 (values에 토큰 평문 금지)
+  tokenSecret:
+    name: ""                        # Secret 이름 (빈값이면 HF 토큰 미사용)
+    key: token                      # Secret 내 키 이름
+
+# ── 환경변수 ──────────────────────────────────────────
+env: []
+  # - name: VLLM_LOGGING_LEVEL
+  #   value: "WARNING"
+
+# ── 배포 전략 ──────────────────────────────────────────
+strategy:
+  type: Recreate                    # GPU 워크로드는 Recreate 권장
+
+# ── Node 선택 ──────────────────────────────────────────
+nodeSelector: {}
+  # gpu: nvidia
+
+tolerations: []
+
+affinity: {}

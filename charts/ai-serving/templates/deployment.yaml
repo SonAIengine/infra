@@ -1,0 +1,121 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ai-serving.fullname" . }}
+  namespace: {{ include "ai-serving.namespace" . }}
+  labels:
+    {{- include "ai-serving.labels" . | nindent 4 }}
+    {{- include "ai-serving.selectorLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.serving.replicas }}
+  strategy:
+    type: {{ .Values.strategy.type }}
+  selector:
+    matchLabels:
+      {{- include "ai-serving.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ai-serving.labels" . | nindent 8 }}
+        {{- include "ai-serving.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if .Values.gpu.enabled }}
+      runtimeClassName: {{ .Values.gpu.runtimeClassName }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: vllm
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["vllm", "serve"]
+          args:
+            {{- include "ai-serving.vllmArgs" . | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.serving.port }}
+              protocol: TCP
+          env:
+            - name: VLLM_NO_USAGE_STATS
+              value: "1"
+            {{- if .Values.modelStorage.enabled }}
+            - name: HF_HOME
+              value: {{ .Values.modelStorage.mountPath }}
+            {{- end }}
+            {{- if .Values.huggingface.tokenSecret.name }}
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.huggingface.tokenSecret.name }}
+                  key: {{ .Values.huggingface.tokenSecret.key }}
+            {{- end }}
+            {{- range .Values.env }}
+            - name: {{ .name }}
+              {{- if .value }}
+              value: {{ .value | quote }}
+              {{- else if .valueFrom }}
+              valueFrom:
+                {{- toYaml .valueFrom | nindent 16 }}
+              {{- end }}
+            {{- end }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.healthCheck.startupProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.healthCheck.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthCheck.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.healthCheck.startupProbe.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.healthCheck.livenessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.healthCheck.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthCheck.livenessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.healthCheck.livenessProbe.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.healthCheck.readinessProbe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.healthCheck.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthCheck.readinessProbe.periodSeconds }}
+            failureThreshold: {{ .Values.healthCheck.readinessProbe.failureThreshold }}
+          resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu | quote }}
+              memory: {{ .Values.resources.requests.memory }}
+              {{- if .Values.gpu.enabled }}
+              nvidia.com/gpu: {{ .Values.gpu.count | quote }}
+              {{- end }}
+            limits:
+              cpu: {{ .Values.resources.limits.cpu | quote }}
+              memory: {{ .Values.resources.limits.memory }}
+              {{- if .Values.gpu.enabled }}
+              nvidia.com/gpu: {{ .Values.gpu.count | quote }}
+              {{- end }}
+          volumeMounts:
+            {{- if .Values.modelStorage.enabled }}
+            - name: model-cache
+              mountPath: {{ .Values.modelStorage.mountPath }}
+            {{- end }}
+            - name: dshm
+              mountPath: /dev/shm
+      volumes:
+        {{- if .Values.modelStorage.enabled }}
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: {{ include "ai-serving.fullname" . }}-models
+        {{- end }}
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: {{ .Values.shmSize }}

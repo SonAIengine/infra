@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ai-serving.fullname" . }}
+  namespace: {{ include "ai-serving.namespace" . }}
+  labels:
+    {{- include "ai-serving.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "ai-serving.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.serving.port }}
+      targetPort: http
+      protocol: TCP
