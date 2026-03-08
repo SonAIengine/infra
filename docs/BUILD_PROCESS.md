@@ -300,7 +300,7 @@ on:
 # dongtan-master-guide/.github/workflows/deploy.yml
 jobs:
   deploy:
-    uses: SonAIengine/infra/.github/workflows/build-and-push.yml@main
+    uses: SonAIengine/runway/.github/workflows/build-and-push.yml@main
     with:
       app-name: dongtan
       namespace: dongtan
@@ -384,7 +384,7 @@ infra/ (32 files)
 | 커밋 | 내용 |
 |------|------|
 | `ccc23eb` | feat: universal deployment platform with Helm + ArgoCD + Reusable GHA (32 files, 2252 lines) |
-| `4f393aa` | fix: update repo URL from sonbs21/infra to SonAIengine/infra |
+| `4f393aa` | fix: update repo URL from sonbs21/infra to SonAIengine/runway |
 
 ## 12. 향후 계획
 

@@ -38,6 +38,6 @@ configs:
     server.insecure: true
   repositories:
     infra-repo:
-      url: https://github.com/SonAIengine/infra.git
-      name: infra
+      url: https://github.com/SonAIengine/runway.git
+      name: runway
       type: git

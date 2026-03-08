@@ -6,7 +6,7 @@ metadata:
 spec:
   description: Web application deployments managed by Helm
   sourceRepos:
-    - https://github.com/SonAIengine/infra.git
+    - https://github.com/SonAIengine/runway.git
   destinations:
     - namespace: "*"
       server: https://kubernetes.default.svc

@@ -21,7 +21,7 @@ on:
         description: "Infra repository (owner/repo)"
         required: false
         type: string
-        default: "SonAIengine/infra"
+        default: "SonAIengine/runway"
     secrets:
       GH_PAT:
         description: "GitHub PAT for updating infra repo"

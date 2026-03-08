@@ -10,7 +10,7 @@ spec:
   goTemplateOptions: ["missingkey=error"]
   generators:
     - git:
-        repoURL: https://github.com/SonAIengine/infra.git
+        repoURL: https://github.com/SonAIengine/runway.git
         revision: HEAD
         directories:
           - path: apps/*
@@ -23,7 +23,7 @@ spec:
     spec:
       project: web-apps
       source:
-        repoURL: https://github.com/SonAIengine/infra.git
+        repoURL: https://github.com/SonAIengine/runway.git
         targetRevision: HEAD
         path: charts/web-app
         helm:
